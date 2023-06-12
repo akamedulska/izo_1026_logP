@@ -1,0 +1,8 @@
+---
+title: "About"
+---
+
+This page contains an analysis of isocratic chromatographic data published in the article:
+
+Agnieszka Kamedulska, Łukasz Kubik, Paweł Wiczling, 2022, "Statistical analysis of isocratic chromatographic data using Bayesian modeling", Analytical and Bioanalytical Chemistry, 414 (11): 3471-3481.
+

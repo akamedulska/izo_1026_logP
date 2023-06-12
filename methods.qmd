@@ -1,0 +1,11 @@
+# Methods
+
+Described models assume a nonlinear relationship between $\log k$ and the content of organic modifier $\varphi$ (Neue et al. \cite{Neue2001} equation): \begin{align*}
+\log k =\log k_w - \frac{S_1 \cdot \varphi}{1+S_2 \cdot \varphi} , \label{Neue}
+\end{align*} where $\log k_w$ stands for the logarithm of the retention factor corresponding to neat water as the eluent, and $S_1$, $S_2$ are constants describing the steepness of the relationship between the solvent composition and the logarithm of the retention factor. We also assumed that: \begin{align*}
+S_1 &= (\log k_w - \log k_a ) \cdot ( 1+ 10^{\log S_{2}} )
+\end{align*} where $\log k_a$ denotes the logarithm of the retention factor in 100% acetonitrile and $\log S_{2}$ denotes the logarithm of the curvature coefficient.
+
+The first levels of our hierarchical models have the following form: \begin{align*}
+\log k_{Obs_{i,j}} \sim N(f(R_i,\varphi_{i,j}),\sigma)
+\end{align*} where $R_i=(\log k_{w_i}, \log k_{a_i}, \log S_{2_i})$ is a vector of analyte-specific chromatographic parameters, $f$ is a function corresponding to the right side of the Neue equation and $\sigma$ is the standard deviation.

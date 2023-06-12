@@ -1,0 +1,18 @@
+---
+title: "Statistical analysis of isocratic chromatographic data using Bayesian modeling"
+author: "Agnieszka Kamedulska, Łukasz Kubik, Paweł Wiczling"
+adress: "Department of Biopharmaceutics and Pharmacodynamics, Medical University of Gdańsk, Gen. J. Hallera 107, 80-416 Gdańsk, Poland"
+date: "`r format(Sys.Date())`"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache=TRUE, message=FALSE, error=FALSE, warning=FALSE, comment=NA, out.width='95%')
+```
+
+# Introduction
+
+Prediction of retention times is difficult due to the complexity and multiplicity of various interactions that occur during separation in an RP-HPLC column. The most important of these are the interactions between the analytes,
+between the solvent and the analytes, and the interactions of the stationary phase constituents with each other, as well as with the molecules of analytes and solvents.
+
+In this work, we decided to use Bayesian hierarchical models. This models contain two types of parameters: population-level parameters (fixed effect) and individual-level parameters (random effect). The fixed effects are the parameters of the population which are immutable for each data collected from the population. In contrast, the random effects are those parameters whose values differ for individual representatives of the population (i.e., each analyte). As for the regression models, their purpose is to describe the response variable as a function of predictor variables. However, the advantage of multilevel models is the recognition of similarity between the analytes which provides more information about the retention of individual analytes, due to the fact that the missing information can be borrowed from other similar analytes.
+

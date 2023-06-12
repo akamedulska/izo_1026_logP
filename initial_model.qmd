@@ -1,0 +1,449 @@
+# Initial model
+
+At the beginning we used a model with partial pooling and a common distribution for analyte-specific parameters. The second level of model is expressed as follows: \begin{align*}
+ R_i \sim \text{MST}(\nu,\theta_R + \beta \cdot log P_i, \Omega) ,
+\end{align*} where $R_i=(\log k_{w_i}, \log k_{a_i}, \log S_{2_i})$ is a vector of analyte-specific chromatographic parameters, MST is a multivariate Student's $t$-distribution, $\theta_R$ is a vector of the expected values of $R_i$ for the analyte with $\log P_i = 0$, and $\beta$ is a vector of slopes between $\log P_i$ and $R_i$. In turn, $\Omega$ is the covariance matrix for the random effects related to the residual and unexplained between-analyte variability. The MST distribution with $\nu$ was used to ensure flexibility and robustness for analytes with unusually high or low values of $R_i$.
+
+## Priors
+
+In this work were used weakly uninformative priors as described in our previous work [@Kubik2018]: \begin{align*}
+\nu \sim Gamma(2,0.1),\\
+\theta_{\log k_{w}} \sim N(2,5),  \quad \theta_{\log k_{a}} \sim N(0,5),\\
+\theta_{\log S_{2}},  \sim N(\log 2,0.5), \\
+\beta_{\log k_{w}} \sim N(1,0.5), \quad
+\beta_{\log k_{a}} \sim N(1,0.5), \\
+\text{logPmissing} \sim N(2.56,1.92), \\
+\omega \sim N(0,5),\\
+\begin{bmatrix}
+ 1 & \rho_{1,2} & \rho_{1,3} \\
+ \rho_{2,1} & 1 & \rho_{2,3} \\
+ \rho_{3,1} & \rho_{3,2} & 1 
+ \end{bmatrix} \sim LKJ(1), \\
+\sigma \sim N(0,1),\\
+\eta \sim MST(\nu,\theta_{\eta},\Omega).
+\end{align*}
+
+## Analysis
+
+At the beginning, a model was constructed and implemented in the Stan program.
+
+```{stan output.var="initial_model", eval = FALSE}
+functions{
+  real hplcmodel(real fi, real logkw, real logka, real logS2A){
+    
+    real logk;												// retention factor
+    real S1;												// slope coefficient
+    
+    S1 = (logkw - logka)*(1+exp(logS2A));
+    logk					= logkw - S1 * fi / (1 + exp(logS2A) * fi);
+    
+    return logk;
+  }
+}
+data{
+  int nAnalytes;											// number of analytes
+  int nObs;												// number of observations
+  int analyte[nObs];										// analytes indexes
+  vector[nObs] logkObs;									// observed retention factors
+  vector[nObs] fi;										// organic modifier content in the mobile phase
+  real logP[nAnalytes];      
+  int idxmissing[nAnalytes];
+  int nfiplot;											// number of fi for plotting
+  vector[nfiplot] fiplot;									// organic modifier content in the mobile phase
+  
+  int<lower = 0, upper = 1> run_estimation; // 0 for prior predictive, 1 for estimation
+}
+
+transformed data{
+  vector[3] etaHat;
+  etaHat					= rep_vector(0.0,3);
+}
+
+parameters{
+  real logkaHat;										   // retention factor in acetonitrile for  analyte with MLOGP 0
+  real logS2AHat;								           // mean curvature coefficient for acetonitrile in population
+  real<lower = 0> sigmaadd;							   // standard deviation for residuals
+  corr_matrix[3] rho;									   // correlation matrix
+  vector<lower = 0>[3] omega;							   // diagonal elements of variance-covariance matrix
+  real logkwHat;										   // mean value of logkw in population
+  vector[3] eta[nAnalytes];							   // inter-individual variability
+  real beta_logkw;									   // coefficient value for molecular descriptor
+  real beta_logka;
+  real nu;			// normality constant
+  real logPmissing[nAnalytes];
+}
+
+transformed parameters{
+  cov_matrix[3] Omega;									// variance-covariance matrix
+  real logka[nAnalytes];									// slope coefficient for acetonitrile
+  real logS2A[nAnalytes];									// curvature coefficient for acetonitrile
+  real logkw[nAnalytes];									// retention factor in neat water
+  vector[nObs] logkHat;									// mean value of logk in population
+  
+  Omega = quad_form_diag(rho, omega);	// diag_matrix(omega) * rho * diag_matrix(omega)
+  
+  for(j in 1:nAnalytes){
+    logka[j]  = eta[j, 1] + logkaHat + beta_logka * ((1-idxmissing[j])*logP[j]+idxmissing[j]*logPmissing[j]);
+    logS2A[j] = eta[j, 2] + logS2AHat;
+    logkw[j]  = eta[j, 3] + logkwHat + beta_logkw * ((1-idxmissing[j])*logP[j]+idxmissing[j]*logPmissing[j]);
+  }
+  
+  for(i in 1:nObs){
+    logkHat[i] = hplcmodel(fi[i], logkw[analyte[i]], logka[analyte[i]], logS2A[analyte[i]]);
+  }
+}
+
+model{
+  logkwHat				~ normal(2, 5);
+  logkaHat			    ~ normal(0, 5);
+  logS2AHat				~ normal(log(2), 0.5);
+    beta_logkw         	    ~ normal(1,0.5);
+    beta_logka         	    ~ normal(1,0.5);
+  logPmissing ~ normal(2.56,1.92);
+  omega					~ normal(0,5);
+  nu                      ~ gamma(2,0.1);
+  rho						~ lkj_corr(1);
+  sigmaadd				~ normal(0,1);
+  eta						~ multi_student_t(nu,etaHat, Omega);	// inter-individual variability
+
+  if(run_estimation==1){
+  logkObs					~ normal(logkHat, sigmaadd);	// observations
+}
+
+}
+
+generated quantities{
+  
+  vector[3] etaPred[nAnalytes];							// etas
+  real logkaPred[nAnalytes];								// etention factor in acetonitrile
+  real logS2APred[nAnalytes];								// curvature coefficient for acetonitrile
+  real logkwPred[nAnalytes];								// retention factor in neat water
+  vector[nObs] logkHatPred;						    	// predicted logk	
+  real logkCond[nObs];
+  real logkPred[nObs];
+  real log_lik[nObs];
+  real log_likPred[nObs];
+  matrix[nAnalytes,nfiplot] logkHatPlotACond;
+  matrix[nAnalytes,nfiplot] logkPlotACond;
+  matrix[nAnalytes,nfiplot] logkHatPlotAPred;
+  matrix[nAnalytes,nfiplot] logkPlotAPred;
+  
+  for(j in 1:nAnalytes){
+    etaPred[j] = multi_student_t_rng(nu,etaHat, Omega);	// inter-individual variability
+    logkaPred[j] = etaPred[j, 1] + logkaHat + beta_logka * ((1-idxmissing[j])*logP[j]+idxmissing[j]*logPmissing[j]);
+    logS2APred[j]	= etaPred[j, 2] + logS2AHat;
+    logkwPred[j]	= etaPred[j, 3] + logkwHat + beta_logkw * ((1-idxmissing[j])*logP[j]+idxmissing[j]*logPmissing[j]);
+  }
+  
+  for(i in 1:nObs){
+    logkHatPred[i]	= hplcmodel(fi[i], logkwPred[analyte[i]], logkaPred[analyte[i]], logS2APred[analyte[i]]);
+    logkCond[i]		= normal_rng(logkHat[i], sigmaadd);
+    logkPred[i]		= normal_rng(logkHatPred[i], sigmaadd);
+    log_lik[i]		= normal_lpdf(logkObs[i] | logkHat[i], sigmaadd);
+    log_likPred[i]	= normal_lpdf(logkObs[i] | logkHatPred[i], sigmaadd);
+  }
+  
+  for(j in 1:nAnalytes){
+    for(z in 1:nfiplot){
+      logkHatPlotACond[j,z]	= hplcmodel(fiplot[z], logkw[j], logka[j], logS2A[j]);
+      logkPlotACond[j,z]		= normal_rng(logkHatPlotACond[j,z], sigmaadd);
+      
+      logkHatPlotAPred[j,z]	= hplcmodel(fiplot[z], logkwPred[j], logkaPred[j], logS2APred[j]);
+      logkPlotAPred[j,z]		= normal_rng(logkHatPlotAPred[j,z], sigmaadd);
+      
+    }
+  }
+  
+}
+```
+
+Then, the data was added to it and the initial values of the model parameters were determined. In the end, the model was fitted.
+
+```{r eval = FALSE}
+# indicating missing value of log P
+idxmissing <- rep(0,1026)
+idxmiss <- which(is.nan(DS$logP_ACD[!duplicated(DS$ID)]))
+idxmissing[idxmiss] <- 1
+
+DS$logP_ACD[which(DS$ID %in% idxmiss)] <- 0
+
+# data to model
+datastruct_prior = with(DS,
+                    list(logP=DS$logP_ACD[!duplicated(DS$ID)],
+                       idxmissing=idxmissing,
+                       nAnalytes=nAnalytes,
+                       nObs=nObs,
+                       analyte=DS$ID,
+                       logkObs=DS$logk, 
+                       fi=DS$concentration,
+                       nfiplot=length(fi),
+                       fiplot=fi,
+                       run_estimation=0))
+
+datastruct = with(DS,
+                  list(logP=DS$logP_ACD[!duplicated(DS$ID)],
+                       idxmissing=idxmissing,
+                       nAnalytes=nAnalytes,
+                       nObs=nObs,
+                       analyte=DS$ID,
+                       logkObs=DS$logk, 
+                       fi=DS$concentration,
+                       nfiplot=length(fi),
+                       fiplot=fi,
+                       run_estimation=1))
+
+# declaring initial values for each variable in chains
+init <- function(){
+  list(logkwHat  = mean(inital_param_A[,2]+rnorm(nAnalytes,0,0.5)),
+       logkaHat  = rnorm(1,0,0.5),
+       logS2AHat = log(2)+rnorm(1,0,0.5),
+       
+       beta_logka = 0.4+rnorm(1,0,0.1),
+       beta_logkw = 0.8+rnorm(1,0,0.1),
+       
+       eta= matrix(rnorm(nAnalytes*3,0,0.5),nAnalytes,3),
+       
+       rho = diag(1,3,3),
+       
+       nu = max(1, 10+rnorm(1,0,2)),
+       
+       omega= c(3,3,3)*exp(rnorm(3,0,0.2)),
+       sigmaadd = 0.2*exp(rnorm(1,0,0.2))
+  )
+}
+
+# specifying parameters to analysis 
+parametersToPlot <- c("logkwHat","logkaHat","logS2AHat","beta_logka","beta_logkw","eta","rho","nu","omega","sigmaadd")
+otherRVs <- c("logkCond","logkPred","logkPlotACond","logkPlotAPred","log_lik","log_likPred",
+              "eta","etaPred")
+
+parameters <- c(parametersToPlot, otherRVs)
+parametersToPlot <- c("lp__", parametersToPlot)
+
+# fitting model
+fit_prior <- stan(file="HPLCizomodel44.stan",
+            data=datastruct_prior,
+            pars=parameters,
+            iter=2000,
+            warmup=1000,
+            init=init,
+            chains=4,thin=1,control = list(adapt_delta = 0.9,max_treedepth=15))
+
+fit <- stan(file="ACN000.stan",
+                   data=datastruct,
+                   pars=parameters,
+                   iter=2000,
+                   warmup=1000,
+                   init=init,
+                   chains=4,thin=1,control = list(max_treedepth=12))
+
+```
+
+Below code preapering data to fit the model in supercomputer:
+
+```{r message=FALSE}
+# load packages
+library(pracma)
+library(dplyr)
+library(ggplot2)
+require(gridExtra)
+library(GGally)
+library(cmdstanr)
+library(rstan)
+library(knitr)
+library(reshape2)
+library(bayesplot)
+library(posterior)
+
+# load data
+DS       <- read.csv(here::here("1_data/database_stan_1026.csv"),header = TRUE, sep = ";", dec = ".")
+DS_names <- read.csv(here::here("1_data/database_stan_1026_analyte_names.csv"),header = TRUE, sep = ",", dec = ".")
+DS_pKa   <- read.csv(here::here("1_data/ACD_pKas.csv"),header = TRUE, sep = ",", dec = ".")
+
+idxmissing <- rep(0,1026)
+idxmiss <- which(is.nan(DS$logP_ACD[!duplicated(DS$ID)]))
+idxmissing[idxmiss] <- 1
+DS$logP_ACD[which(DS$ID %in% idxmiss)] <- 0
+
+logP=DS$logP_ACD[!duplicated(DS$ID)]
+nAnalytes=length(unique(DS$ID))
+nObs=length(DS$ID)
+analyte=DS$ID
+logkObs=DS$logk
+fi=DS$concentration
+fiplot=seq(0,1,0.1)
+nfiplot=length(fiplot)
+run_estimation=1
+
+stan_rdump(c("logP",
+             "nAnalytes", 
+             "nObs",
+             "idxmissing", 
+             "analyte", 
+             "logkObs", 
+             "fi",
+             "nfiplot",
+             "fiplot",
+             "run_estimation"),
+           file="2_initial_model/model.data.R")
+
+inital_param_A <- matrix(NA,nAnalytes,2)
+for(i in 1:nAnalytes){
+  inital_param_A[i,] = 
+    polyfit(DS$concentration[which(DS$ID==i)]/(1+2*DS$concentration[which(DS$ID==i)]),
+            DS$logk[which(DS$ID==i)],1)
+}
+
+for(i in 1:10){
+  logkwHat  =  mean(inital_param_A[,2]+rnorm(nAnalytes,0,0.5))
+  logkaHat  = rnorm(1,0,0.5)
+  logS2AHat = log(2)+rnorm(1,0,0.5)
+  beta_logka = 0.4+rnorm(1,0,0.1)
+  beta_logkw = 0.8+rnorm(1,0,0.1)
+  eta= matrix(rnorm(nAnalytes*3,0,0.5),nAnalytes,3)
+  rho = diag(1,3,3)
+  nu = max(1, 10+rnorm(1,0,2))
+  omega= c(3,3,3)*exp(rnorm(3,0,0.2))
+  sigmaadd = 0.2*exp(rnorm(1,0,0.2))
+  
+  stan_rdump(c("logkwHat","logkaHat","logS2AHat","beta_logka","beta_logkw","eta",
+               "rho","nu","omega","sigmaadd"),
+             file=paste("2_initial_model/model_", i, ".init.R", sep=""))
+}
+```
+
+## Summary of model parameters
+
+Code for print summary of parameters from supercomputer:
+
+```{r eval=FALSE}
+fit <- cmdstanr::as_cmdstan_fit(c('2_initial_model/output_1.csv',
+                                  '2_initial_model/output_2.csv',
+                                  '2_initial_model/output_3.csv',
+                                  '2_initial_model/output_4.csv',
+                                  '2_initial_model/output_5.csv',
+                                  '2_initial_model/output_6.csv',
+                                  '2_initial_model/output_7.csv',
+                                  '2_initial_model/output_8.csv',
+                                  '2_initial_model/output_9.csv',
+                                  '2_initial_model/output_10.csv'))
+
+fit$print(c("logkwHat","logkaHat","logS2AHat","beta_logka","beta_logkw","rho","nu","omega","sigmaadd"), max_rows = 26)
+```
+
+Code for print summary of parameters from computer:
+
+```{r}
+load("2_initial_model/Fit.Rsave")
+load("2_initial_model/Fit_sample.Rsave")
+
+print(fit,pars=c("logkwHat","logkaHat","logS2AHat","beta_logka","beta_logkw","rho","nu","omega","sigmaadd"))
+```
+
+## Goodness of fit
+
+The graphs below were used to check how well the model fits the set of observations. The one on the left compares individual predictions with actual observations. The one on the right shows population predictions with actual observations.
+
+```{r}
+par(mfrow=c(1,2))
+plot(apply(fit_sample$logkCond,2,mean),DS$logk,cex.lab=1.2,xlim=c(-4,6),ylim=c(-3,3),pch=20,col="blue",ylab=expression("Log k"[Obs]),xlab=expression("Log k"[Pred]))
+lines(seq(-4,6,by=0.1),seq(-4,6,by=0.1),lwd=2)
+plot(apply(fit_sample$logkPred,2,mean),DS$logk,cex.lab=1.2,xlim=c(-4,6),ylim=c(-3,3),pch=20,col="blue",ylab=expression("Log k"[Obs]),xlab=expression("Log k"[Pred]))
+lines(seq(-4,6,by=0.1),seq(-4,6,by=0.1),lwd=2)
+```
+
+### Analysis of eta's
+
+Intra-analyte residues for analyte-specific parameters were also determined and are shown below.
+
+```{r message=FALSE}
+eta_logka <- apply(drop(fit_sample$eta[,,1]), MARGIN = 2, FUN = mean)
+eta_logS2A <- apply(drop(fit_sample$eta[,,2]), MARGIN = 2, FUN = mean)
+eta_logkw <- apply(drop(fit_sample$eta[,,3]), MARGIN = 2, FUN = mean)
+
+DS_corr <- as.data.frame(cbind(eta_logka,eta_logS2A,eta_logkw))
+
+library(GGally)
+
+ggpairs(DS_corr, 
+        columns =  c("eta_logkw","eta_logka","eta_logS2A"),
+        lower=list(continuous='points'), 
+        columnLabels = c("eta[ logk[w]]","eta[ logk[a]]","eta[ logS[2]]"),
+        labeller = label_parsed,
+        diag=list(continuous=wrap("barDiag", fill="darkblue"))
+)+ theme_grey(base_size = 15)
+```
+
+The plot shows that the distribution of residuals in the case of the $\log k_a$ parameter is bimodal. It indicates that analytes with a similar log P are grouped into two clusters.
+
+### WAIC
+
+WAIC was also used to evaluate the model. This parameter estimates the effective number of parameters to adjust for overfitting.
+
+```{r message=FALSE}
+library(loo)
+waic(extract_log_lik(fit)) # waic(fit_sample$log_lik)
+loo(extract_log_lik(fit))
+```
+
+## Predictions
+
+Individual predictions
+
+```{r}
+library(ggpubr)
+nazwy <- c("Caffeine","Chlorpropamide","Doxepin hydrochloride","Perphenazine",
+  "Pindolol","Phenylbutazone","Procainamide hydrochloride","Retinoic acid",
+  "Sulfaphenazole","Tolbutamide","Ketoprofen","Indomethacin")
+l_nazwy <- which(DS_names$Analyte[!duplicated(DS_names$ID)] %in% nazwy)
+
+plots <- list()
+for(i in 1:nAnalytes){
+  l <- apply(drop(fit_sample$logkPlotACond[,i,]), MARGIN = 2, FUN = quantile, probs = c(.025,.5,.975))
+  logk_prct <- as.data.frame(cbind(rep(i,11),fiplot,t(l)))
+  colnames(logk_prct)<-c("ID","concentration","low","median","high")
+  plots[[i]] <- ggplot()+ xlim(0,1) +
+    geom_point(data=subset(DS, ID == i), aes(x = concentration, y = logk), col="blue") +
+    geom_line(data=subset(logk_prct, ID == i), aes(x = fiplot, y = median), col="blue") +
+    geom_ribbon(data=subset(logk_prct, ID == i), aes(x = fiplot, 
+                                                     ymin = low, 
+                                                     ymax = high), alpha = 0.25, fill="blue")+
+    coord_cartesian(ylim = c(-3, 4)) + 
+    labs(title = paste(DS$Names[which(DS$ID==i)]),
+         x = NULL,
+         y = NULL) +
+    theme(text = element_text(size = 9), axis.text = element_text(size = 9),
+          legend.position = "none", strip.text = element_text(size = 6)) 
+}
+figure1 <- ggarrange(plotlist = plots[l_nazwy], nrow=3,ncol = 4)
+annotate_figure(figure1,
+                bottom = text_grob(expression(varphi)),
+                left = text_grob("log k", rot = 90))
+```
+
+Population predictions
+
+```{r}
+plots <- list()
+for(i in 1:nAnalytes){
+  l <- apply(drop(fit_sample$logkPlotAPred[,i,]), MARGIN = 2, FUN = quantile, probs = c(.025,.5,.975))
+  logk_prct <- as.data.frame(cbind(rep(i,11),fiplot,t(l)))
+  colnames(logk_prct)<-c("ID","concentration","low","median","high")
+  plots[[i]] <- ggplot()+ xlim(0,1) +
+    geom_point(data=subset(DS, ID == i), aes(x = concentration, y = logk), col="blue") +
+    geom_line(data=subset(logk_prct, ID == i), aes(x = fiplot, y = median), col="red") +
+    geom_ribbon(data=subset(logk_prct, ID == i), aes(x = fiplot, 
+                                                     ymin = low, 
+                                                     ymax = high), alpha = 0.25, fill="red")+
+    coord_cartesian(ylim = c(-3, 4)) + 
+    labs(title = paste(DS$Names[which(DS$ID==i)]),
+         x = NULL,
+         y = NULL) +
+    theme(text = element_text(size = 9), axis.text = element_text(size = 9),
+          legend.position = "none", strip.text = element_text(size = 6)) 
+}
+figure1 <- ggarrange(plotlist = plots[l_nazwy], nrow=3,ncol = 4)
+annotate_figure(figure1,
+                bottom = text_grob(expression(varphi)),
+                left = text_grob("log k", rot = 90))
+```

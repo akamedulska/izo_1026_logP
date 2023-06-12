@@ -1,0 +1,22 @@
+#!/bin/bash -l
+
+#SBATCH --job-name=cmdstan_conda
+#SBATCH -N 10
+#SBATCH -n 240
+#SBATCH -p batch
+#SBATCH --time=60:00:00
+#SBATCH --array=1-10%10                         # Tablica zadan (uruchomienie 2 zadań na 4)
+
+# Załadowanie modułu
+module load tryton/cmdstan/2.30.1-conda
+
+export STAN_THREADS=true
+
+# Katalog z modelem (czyli gdzie się on znajduje)
+export MODEL_SRC_DIR=$TASK_USER_WORK
+cd $MODEL_SRC_DIR
+
+# Budowanie modelu
+[ -f HPLCizomodel44 ] && echo "Model HPLCizomodel44 istnieje." || cmdstan_model HPLCizomodel44
+
+./HPLCizomodel44 sample num_samples=400 num_warmup=1000 algorithm=hmc engine=nuts max_depth=12 stepsize=0.01 adapt delta=0.8 data file=$PWD/model.data.R init=$PWD/model_${SLURM_ARRAY_TASK_ID}.init.R  num_threads=${SLURM_NTASKS} output file=$PWD/output_${SLURM_ARRAY_TASK_ID}.csv

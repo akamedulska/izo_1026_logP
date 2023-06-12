@@ -1,0 +1,23 @@
+# Setup
+
+Packages:
+
+```{r message=FALSE}
+library(pracma)
+library(dplyr)
+library(ggplot2)
+require(gridExtra)
+library(cmdstanr)
+library(rstan)
+library(knitr)
+library(reshape2)
+library(bayesplot)
+library(posterior)
+library(GGally)
+library(kableExtra)
+library(here)
+
+set.seed(10271998) ## not required but assures repeatable results
+```
+
+
