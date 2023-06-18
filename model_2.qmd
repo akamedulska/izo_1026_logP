@@ -2,21 +2,18 @@
 
 As confirmed by model 1, the grouping of analytes is related to the degree of dissociation of compounds. Hence, model 2 takes into account the $pK_a$ information of the substances contained in the sample by determining the dissociated and neutral fractions.
 
-For a monoprotic acid, the logarithm of the ratio of the ionized form to the neutral one at a particular pH = 2.66 is given by:
-\begin{align*}
+For a monoprotic acid, the logarithm of the ratio of the ionized form to the neutral one at a particular pH = 2.66 is given by: \begin{align*}
 \log\left(\frac{fr'_{i}}{1-fr'_{i}}\right) = pH-pK_{a,i}
 \end{align*}
 
-where $fr'_{i}$ denotes the ratio of ionized to total concentration of a compound ($\frac{[A^-]}{[A^-]+[HA]}$) as predicted using $pK_a$ from ACD/Labs software. Since $pK_a$ and pH are measured with an error, it is convenient to introduce an error term at the scale of (pH and $pK_a$) and convert back to the adjusted fraction denoted $fr_{i}$:
-\begin{gather*}
+where $fr'_{i}$ denotes the ratio of ionized to total concentration of a compound ($\frac{[A^-]}{[A^-]+[HA]}$) as predicted using $pK_a$ from ACD/Labs software. Since $pK_a$ and pH are measured with an error, it is convenient to introduce an error term at the scale of (pH and $pK_a$) and convert back to the adjusted fraction denoted $fr_{i}$: \begin{gather*}
     fr_{i}=\frac{1}{1+10^{-{\left(\log\left(\frac{fr'_i}{1-fr'_i}\right)+\eta_i\right)}}},  \\
 \eta_i \sim t\textnormal{-Student}(7,0,0.1) 
 \end{gather*}
 
 where $\eta_i$ is a random variable corresponding to the error described by Student's $t$-distribution with a mean of 0, standard deviation of 0.1, and 7 degrees of freedom. A very small scale was used to indicate that the most likely $pK_a$ values are close to the true values (accurately predicted by ACD/Labs program). Nevertheless, the presence of some outlying values was handled by Student's $t$-distribution. The reasoning presented here for the monoprotic analytes was extended to polyprotic analytes as shown in the Supporting Information.
 
-This model estimates the parameters $\log k_w$, $\log k_a$, and $\log S_2$ as the following sum, taking into account the analyte-specific $fr_{i}$ values:
-\begin{align*}
+This model estimates the parameters $\log k_w$, $\log k_a$, and $\log S_2$ as the following sum, taking into account the analyte-specific $fr_{i}$ values: \begin{align*}
 \begin{bsmallmatrix}
 \log{k_{w,i}}  \\
 \log{k_{a,i}} \\
@@ -31,17 +28,15 @@ This model estimates the parameters $\log k_w$, $\log k_a$, and $\log S_2$ as th
 &\theta_{\log{k_{a_2}}} +\beta_{\log k_{a_{2}}} \cdot \log{P_i}, & \\
 & \theta_{\log{S_{2_2}}} +\beta_{\log S_{2_{2}}} \cdot \log{P_i}, &
 \end{bsmallmatrix},  \Omega_2 \right).
-\end{align*}
-It should be noted that this is a simplification. Theoretically, the retention factor should be expressed by:
-\begin{align*}
+\end{align*} It should be noted that this is a simplification. Theoretically, the retention factor should be expressed by: \begin{align*}
     k_{i} =fr_{i} \cdot k_{ionized} +(1-fr_{i}) \cdot k_{neutral} .
-\end{align*} 
-Nevertheless, for this particular data, the formulas are practically equivalent, since almost all compounds exist either as neutral or as dissociated form. Only 14\% of analytes are expected to be partially dissociated ($<$90\% of the neutral or dissociated form present in a solution). Clearly, to fully elucidate the effects of pH on retention, more extensive data are needed, e.g., those collected for a wide range of pH values of the mobile phase.
+\end{align*} Nevertheless, for this particular data, the formulas are practically equivalent, since almost all compounds exist either as neutral or as dissociated form. Only 14% of analytes are expected to be partially dissociated (\$\<\$90% of the neutral or dissociated form present in a solution). Clearly, to fully elucidate the effects of pH on retention, more extensive data are needed, e.g., those collected for a wide range of pH values of the mobile phase.
 
 ## Priors
 
 In this model, the same priors as in the model 1 were adopted.
 
+```{=tex}
 \begin{align*}
 \theta_{\log k_{w_1}} \sim N(1.054, 1.136),  \quad \theta_{\log k_{w_2}} \sim N(2.053, 1.487),\\
 \theta_{\log k_{a_1}} \sim N(-3.437, 1.062), \quad \theta_{\log k_{a_2}} \sim N(-1.885, 1.006),\\
@@ -62,13 +57,14 @@ In this model, the same priors as in the model 1 were adopted.
  \end{bmatrix} \sim LKJ(1), \\
 \sigma \sim \textnormal{N}_{+}(0,0.067).
 \end{align*}
-
+```
 Due to the implementation of the model in the program, the state was assumed and using the built-in inv_logit function ( $\text{inv_logit}(u)=\frac{1}{1+e^{-u}}$), it was assumed that:
-   
+
+```{=tex}
 \begin{align*}
 \eta \sim \textnormal{Student t}(7,0,0.23).
 \end{align*}
-
+```
 ## Analysis
 
 Model was constructed and implemented in the Stan program.
@@ -589,3 +585,70 @@ annotate_figure(figure1,
                 bottom = text_grob(expression(varphi)),
                 left = text_grob("log k", rot = 90))
 ```
+
+### Uncertainty chromatograms\n\nPlot uncertainity chromatograms expected isocratically at fi=0.5 for 7 randomly selected analytes
+
+```{r message=FALSE,warning=FALSE}
+library(reshape2)
+analyte_ID_sample <- c(122,370,412,626,650,719,772)
+data_to_plot <- logkPlotAPred[,which(DS_names$ID %in% analyte_ID_sample),which(fiplot==0.5)]
+colnames(data_to_plot) <- paste(DS_names$Analyte[analyte_ID_sample])
+
+wp <- melt(data_to_plot)
+p <- ggplot(aes(x=value, colour=Var2), data=wp)
+p + geom_density() + xlim(c(-3,3)) + xlab("Logarithm retention factor") + guides(colour=guide_legend(title="Compouds"))
+```
+
+Plot uncertainity chromatograms expected for a typical gradient for 7 randomly selected analytes
+
+```{r}
+hplcmodelgra <- function(logkw,logka,logS2A,tg,fio,fif,to,td,te,time){
+  fi = fio - (fio-fif)/tg*(time-td)
+  fi[which(time<td)] = fio
+  fi[which(time>tg+td)] = fif
+  S1 = (logkw - logka)*(1+10^logS2A)
+  tr <- matrix(NA,nrow(logkw),ncol(logkw))
+  for(i in 1:nrow(logkw)){
+    for(j in 1:ncol(logkw)){
+      logki = logkw[i,j] - S1[i,j]*fi/(1 + 10^logS2A[i,j]*fi)
+      ki = 10^logki
+      inv_k_i = 1/to/ki
+      cumtr  = cumtrapz(time,inv_k_i)
+      if(cumtr[length(cumtr)]>=1){
+        trprim = interp1(as.vector(cumtr),time,1)
+      }else{
+          trprim = (1-cumtr[length(cumtr)])*ki[length(ki)]*to+time[length(time)]
+      }
+      tr[i,j] = trprim + to + te
+    }
+  }
+  return(tr)
+}
+```
+
+```{r warning=FALSE}
+data_to_plot <- hplcmodelgra(fit_sample$logkwPred[,analyte_ID_sample],
+                             fit_sample$logkaPred[,analyte_ID_sample],
+                             fit_sample$logS2APred[,analyte_ID_sample],
+                             20,0,1,1,0.2,0,seq(0,20+10,length.out=1000))
+colnames(data_to_plot) <- paste(DS_names$Analyte[analyte_ID_sample])
+
+wp <- melt(data_to_plot)
+p <- ggplot(aes(x=value, colour=Var2), data=wp)
+p + geom_density() + xlim(c(0,30)) + xlab("Retention time") +
+  guides(colour=guide_legend(title="Compouds"))
+```
+
+```{r warning=FALSE}
+analyte_ID_sample <- c(112, 122, 241, 379,498, 512, 626, 672, 726, 772)
+data_to_plot <- hplcmodelgra(fit_sample$logkwPred[,analyte_ID_sample],
+                             fit_sample$logkaPred[,analyte_ID_sample],
+                             fit_sample$logS2APred[,analyte_ID_sample],
+                             20,0,1,1,0.2,0,seq(0,20+10,length.out=1000))
+colnames(data_to_plot) <- paste(DS_names$Analyte[analyte_ID_sample])
+
+wp <- melt(data_to_plot)
+p <- ggplot(aes(x=value, colour=Var2), data=wp)
+p + geom_density() + xlim(c(0,30)) + xlab("Retention time") + guides(colour=guide_legend(title="Compouds"))
+```
+

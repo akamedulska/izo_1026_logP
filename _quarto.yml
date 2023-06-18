@@ -1,5 +1,6 @@
 project:
   type: website
+  output-dir: docs
 
 website:
   title: "izo_1026_logP"
@@ -13,12 +14,13 @@ website:
       - initial_model.qmd
       - model_1.qmd
       - model_2.qmd
+      - comparison.qmd
       - about.qmd
 
 format:
   html:
     theme: cosmo
-    css: styles.css
+    #css: styles.css
     toc: true
     code-fold: true
     code-tools: true
