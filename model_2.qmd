@@ -13,7 +13,8 @@ where $fr'_{i}$ denotes the ratio of ionized to total concentration of a compoun
 
 where $\eta_i$ is a random variable corresponding to the error described by Student's $t$-distribution with a mean of 0, standard deviation of 0.1, and 7 degrees of freedom. A very small scale was used to indicate that the most likely $pK_a$ values are close to the true values (accurately predicted by ACD/Labs program). Nevertheless, the presence of some outlying values was handled by Student's $t$-distribution. The reasoning presented here for the monoprotic analytes was extended to polyprotic analytes as shown in the Supporting Information.
 
-This model estimates the parameters $\log k_w$, $\log k_a$, and $\log S_2$ as the following sum, taking into account the analyte-specific $fr_{i}$ values: \begin{align*}
+This model estimates the parameters $\log k_w$, $\log k_a$, and $\log S_2$ as the following sum, taking into account the analyte-specific $fr_{i}$ values: 
+\begin{align*}
 \begin{bsmallmatrix}
 \log{k_{w,i}}  \\
 \log{k_{a,i}} \\
@@ -30,7 +31,8 @@ This model estimates the parameters $\log k_w$, $\log k_a$, and $\log S_2$ as th
 \end{bsmallmatrix},  \Omega_2 \right).
 \end{align*} It should be noted that this is a simplification. Theoretically, the retention factor should be expressed by: \begin{align*}
     k_{i} =fr_{i} \cdot k_{ionized} +(1-fr_{i}) \cdot k_{neutral} .
-\end{align*} Nevertheless, for this particular data, the formulas are practically equivalent, since almost all compounds exist either as neutral or as dissociated form. Only 14% of analytes are expected to be partially dissociated (\$\<\$90% of the neutral or dissociated form present in a solution). Clearly, to fully elucidate the effects of pH on retention, more extensive data are needed, e.g., those collected for a wide range of pH values of the mobile phase.
+\end{align*} 
+Nevertheless, for this particular data, the formulas are practically equivalent, since almost all compounds exist either as neutral or as dissociated form. Only 14% of analytes are expected to be partially dissociated (\$\<\$90% of the neutral or dissociated form present in a solution). Clearly, to fully elucidate the effects of pH on retention, more extensive data are needed, e.g., those collected for a wide range of pH values of the mobile phase.
 
 ## Priors
 
@@ -58,7 +60,7 @@ In this model, the same priors as in the model 1 were adopted.
 \sigma \sim \textnormal{N}_{+}(0,0.067).
 \end{align*}
 ```
-Due to the implementation of the model in the program, the state was assumed and using the built-in inv_logit function ( $\text{inv_logit}(u)=\frac{1}{1+e^{-u}}$), it was assumed that:
+Due to the implementation of the model in the program, the state was assumed and using the built-in inv_logit function ( $\text{inv\_logit}(u)=\frac{1}{1+e^{-u}}$), it was assumed that:
 
 ```{=tex}
 \begin{align*}
@@ -542,7 +544,7 @@ annotate_figure(figure1,
 
 Population predictions
 
-```{r}
+```{r eval=FALSE}
 hplc <- function(fi,logkw,logka,logS2A){
   S1 = (logkw - logka)*(1+10^logS2A)
   logk = logkw - S1 * fi / (1 + 10^logS2A * fi)
@@ -561,6 +563,11 @@ for(j in 1:nAnalytes){
     }
   }
 }
+save(logkPlotAPred,"4_model_2/logkPlotAPred.Rsave")
+```
+
+```{r message=FALSE,warning=FALSE}
+load("4_model_2/logkPlotAPred.Rsave")
 
 plots <- list()
 for(i in 1:nAnalytes){
@@ -586,7 +593,9 @@ annotate_figure(figure1,
                 left = text_grob("log k", rot = 90))
 ```
 
-### Uncertainty chromatograms\n\nPlot uncertainity chromatograms expected isocratically at fi=0.5 for 7 randomly selected analytes
+### Uncertainty chromatograms
+
+Plot uncertainity chromatograms expected isocratically at fi=0.5 for 7 randomly selected analytes
 
 ```{r message=FALSE,warning=FALSE}
 library(reshape2)
