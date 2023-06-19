@@ -1,0 +1,173 @@
+# Comparison of models 
+
+## Goodness of fit
+
+The goodness-of-fit plots for Initial model, Model 1 and Model 2: the observed vs. the mean individual-prediction retention factors (i.e., the a posteriori mean of a predictive distribution conditioned on the observed data from the same analyte) and the observed vs. the mean typical-prediction retention factors (i.e., the a posteriori means of predictive distributions corresponding to the future observations of a new analyte).
+
+```{r message=FALSE}
+library(metRology)
+library(ggplot2)
+
+DS <- read.csv(here::here("1_data/database_stan_1026.csv"),header = TRUE, sep = ";", dec = ".")
+
+load("2_initial_model/Fit_sample.Rsave")
+fit_sample_model <- fit_sample
+
+load("3_model_1/Fit_sample.Rsave")
+fit_sample_model_1 <- fit_sample
+
+load("4_model_2/Fit_sample.Rsave")
+fit_sample_model_2 <- fit_sample
+
+nAnalytes <-1026
+
+logkw <- c()
+logka <- c()
+logS2A <- c()
+
+for(i in 1:nAnalytes){
+  logkw[i] <- mean(fit_sample_model_1$logkw[,i])
+  logka[i] <-mean(fit_sample_model_1$logka[,i])
+  logS2A[i] <-mean(fit_sample_model_1$logS2A[,i])
+} 
+
+logkCond_1 <-c()
+logkObsCond_1 <-c()
+sigma <- mean(fit_sample_model_1$sigma)
+
+for(j in 1:nrow(DS)){
+  S1 = (logkw[DS$ID[j]] - logka[DS$ID[j]])*(1+10^logS2A[DS$ID[j]]);
+  logkCond_1[j] = logkw[DS$ID[j]] - S1 * DS$concentration[j] / (1 + 10^logS2A[DS$ID[j]] * DS$concentration[j])
+  logkObsCond_1[j] = rt.scaled(1,7,logkCond_1[j],sigma)
+}
+
+
+logkwPred <- c()
+logkaPred <- c()
+logS2APred <- c()
+
+for(i in 1:nAnalytes){
+  logkwPred[i] <- mean(fit_sample_model_1$paramPred[,i,1])
+  logkaPred[i] <-mean(fit_sample_model_1$paramPred[,i,2])
+  logS2APred[i] <-mean(fit_sample_model_1$paramPred[,i,3])
+} 
+
+logkPred_1 <-c()
+logkObsPred_1 <-c()
+sigma <- mean(fit_sample_model_1$sigma)
+
+for(j in 1:nrow(DS)){
+  S1 = (logkwPred[DS$ID[j]] - logkaPred[DS$ID[j]])*(1+10^logS2APred[DS$ID[j]]);
+  logkPred_1[j] = logkwPred[DS$ID[j]] - S1 * DS$concentration[j] / (1 + 10^logS2APred[DS$ID[j]] * DS$concentration[j])
+  logkObsPred_1[j] = rt.scaled(1,7,logkPred_1[j],sigma)
+}
+
+
+for(i in 1:nAnalytes){
+  logkwPred[i] <- mean(fit_sample_model_2$logkwPred[,i])
+  logkaPred[i] <-mean(fit_sample_model_2$logkaPred[,i])
+  logS2APred[i] <-mean(fit_sample_model_2$logS2APred[,i])
+} 
+
+logkPred_2 <-c()
+logkObsPred_2 <-c()
+sigma <- mean(fit_sample_model_2$sigma)
+
+for(j in 1:nrow(DS)){
+  S1 = (logkwPred[DS$ID[j]] - logkaPred[DS$ID[j]])*(1+10^logS2APred[DS$ID[j]]);
+  logkPred_2[j] = logkwPred[DS$ID[j]] - S1 * DS$concentration[j] / (1 + 10^logS2APred[DS$ID[j]] * DS$concentration[j])
+  logkObsPred_2[j] = rt.scaled(1,7,logkPred_2[j],sigma)
+}
+
+p1 <- ggplot()+geom_point(aes(apply(fit_sample_model$logkCond,2,mean),DS$logk),col="red")+
+  labs(x="", y = "Observed log k")+
+  xlim(-6,6)+ylim(-3,3) + geom_line(aes(seq(-3,6,by=0.1),seq(-3,6,by=0.1)),size=1)
+
+p2 <- ggplot()+geom_point(aes(apply(fit_sample_model$logkPred,2,mean),DS$logk),col="red")+
+  labs(x="",y="")+
+  xlim(-6,6)+ylim(-3,3) + geom_line(aes(seq(-3,6,by=0.1),seq(-3,6,by=0.1)),size=1)
+
+p3 <- ggplot()+geom_point(aes(logkObsCond_1,DS$logk),col="red")+
+  labs(x="", y = "Observed log k")+
+  xlim(-6,6)+ylim(-3,3) + geom_line(aes(seq(-3,6,by=0.1),seq(-3,6,by=0.1)),size=1)
+
+p4 <- ggplot()+geom_point(aes(logkObsPred_1,DS$logk),col="red")+
+  labs(x="",y="")+
+  xlim(-6,6)+ylim(-3,3) + geom_line(aes(seq(-3,6,by=0.1),seq(-3,6,by=0.1)),size=1)
+
+p5 <- ggplot()+geom_point(aes(apply(fit_sample_model_2$logkCond,2,mean),DS$logk),col="red")+
+  labs(x ="Predicted log k",x="", y = "Observed log k")+
+  xlim(-6,6)+ylim(-3,3) + geom_line(aes(seq(-3,6,by=0.1),seq(-3,6,by=0.1)),size=1)
+
+p6 <- ggplot()+geom_point(aes(logkObsPred_2,DS$logk),col="red")+
+  labs(x ="Predicted log k",y="")+
+  xlim(-6,6)+ylim(-3,3) + geom_line(aes(seq(-3,6,by=0.1),seq(-3,6,by=0.1)),size=1)
+
+
+library(patchwork)
+row1 <- ggplot() + annotate(geom = 'text', x=1, y=1, label="Initial model", fontface=2,angle = 90) + theme_void() 
+row2 <- ggplot() + annotate(geom = 'text', x=1, y=1, label="Model 1", fontface=2,angle = 90) + theme_void() 
+row3 <- ggplot() + annotate(geom = 'text', x=1, y=1, label="Model 2",fontface=2, angle = 90) + theme_void() 
+col1 <- ggplot() + annotate(geom = 'text', x=1, y=1, label="Individual Predictions",fontface=2) + theme_void() 
+col2 <- ggplot() + annotate(geom = 'text', x=1, y=1, label="Typical Predictions",fontface=2) + theme_void() 
+layoutplot <- "
+#dddeee
+aggghhh
+aggghhh
+biiijjj
+biiijjj
+ckkklll
+ckkklll
+"
+plotlist <- list(a = row1, b = row2, c = row3, d=col1, e = col2, g= p1, h=p2, i=p3, j=p4, k=p5, l=p6)
+wrap_plots(plotlist, guides = 'collect', design = layoutplot)
+```
+
+## Population predictions
+
+```{r message=FALSE}
+library(ggpubr)
+
+DS       <- read.csv(here::here("1_data/database_stan_1026.csv"),header = TRUE, sep = ";", dec = ".")
+DS_names <- read.csv(here::here("1_data/database_stan_1026_analyte_names.csv"),header = TRUE, sep = ",", dec = ".")
+
+nObs <- length(DS$ID)
+nAnalytes <- length(unique(DS$ID))
+fi <- seq(0,1,0.1)
+
+load("3_model_1/logkPlotAPred.Rsave")
+logkPlotAPred_model_1 <- logkPlotAPred
+load("4_model_2/logkPlotAPred.Rsave")
+logkPlotAPred_model_2 <- logkPlotAPred
+
+plots <- list()
+for(i in 1:nAnalytes){
+  l <- apply(drop(logkPlotAPred_model_1[,i,]), MARGIN = 2, FUN = quantile, probs = c(.025,.5,.975))
+  logk_prct <- as.data.frame(cbind(rep(i,11),fi,t(l)))
+  colnames(logk_prct)<-c("ID","concentration","low","median","high")
+  k <- apply(drop(logkPlotAPred_model_2[,i,]), MARGIN = 2, FUN = quantile, probs = c(.025,.5,.975))
+  logk_prct_2 <- as.data.frame(cbind(rep(i,11),fi,t(k)))
+  colnames(logk_prct_2)<-c("ID","concentration","low","median","high")
+  plots[[i]] <- ggplot()+ xlim(0,1) +
+    geom_point(data=subset(DS, ID == i), aes(x = concentration, y = logk), col="black") +
+    #geom_point(data=subset(DS1, ID == i), aes(x = concentration, y = logk), col="red",lwd=2) +
+    geom_line(data=subset(logk_prct, ID == i), aes(x = fi, y = median), col="blue") +
+    geom_ribbon(data=subset(logk_prct, ID == i), aes(x = fi, 
+                                                     ymin = low, 
+                                                     ymax = high), alpha = 0.25, fill="blue")+
+    geom_line(data=subset(logk_prct_2, ID == i), aes(x = fi, y = median), col="red") +
+    geom_ribbon(data=subset(logk_prct_2, ID == i), aes(x = fi, 
+                                                     ymin = low, 
+                                                     ymax = high), alpha = 0.25, fill="red")+
+    coord_cartesian(ylim = c(-3, 4)) + 
+    labs(title = paste(DS_names$Analyte[i]),
+         x = NULL,
+         y = NULL) +
+    theme(text = element_text(size = 10), axis.text = element_text(size = 9),
+          legend.position = "none", strip.text = element_text(size = 6)) 
+}
+figure1 <- ggarrange(plotlist = plots[c(956,735,585,1016,16,35,182,501,843,206,890,230,243,237,934,8)], nrow=4,ncol = 4)
+annotate_figure(figure1,
+                bottom = text_grob(expression(varphi),size=14),
+                left = text_grob("Log k", rot = 90,size=14))
+```
